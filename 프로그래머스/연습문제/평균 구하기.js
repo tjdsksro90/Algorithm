@@ -1,0 +1,5 @@
+function solution(arr) {
+    var answer = arr.reduce((a,b) => a + b) / arr.length;
+    console.log(answer);
+    return answer;
+}
