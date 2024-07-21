@@ -29,10 +29,31 @@ const Function = (costs, length, L, R) => {
             sum += costs[j];
             if (sum >= L && sum <= R) count++;
             if (sum > R) break; // 효율성을 위해 탈출 코드 
-            console.log(j)
+        }
+    }
+
+    return count;
+}
+
+const TwoPoint = (costs, length, L, R) => {
+    let start = 0;
+    let end = 0;
+    let count = 0;
+    let sum = 0;
+
+    while (start < length) {
+        sum += costs[end]
+        if (sum >= L && sum <= R) count++;
+        end++;
+
+        if (sum > R || end === length) {
+            start++
+            end = start;
+            sum = 0;
         }
     }
     return count;
 }
 
-console.log(Function([1, 2, 3, 4, 5], 5, 5, 9));
+// console.log(Function([1, 2, 3, 4, 5], 5, 5, 9));
+console.log(TwoPoint([1, 2, 3, 4, 5], 5, 5, 9));
