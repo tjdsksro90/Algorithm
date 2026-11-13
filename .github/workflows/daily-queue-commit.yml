@@ -1,0 +1,66 @@
+# 매일 밤 9시(한국 시간)에 queue 브랜치에서 파일 1개를 꺼내 main에 커밋합니다.
+# - queue 브랜치에 "파일 1개 = 커밋 1개"로 쌓아두면 넣은 순서대로 하루에 하나씩 올라갑니다.
+# - 이미 main에 같은 내용이 올라간 커밋은 자동으로 건너뜁니다.
+# - Actions 탭에서 수동 실행할 때 dry_run을 켜두면 실제로 푸시하지 않고 다음 차례만 보여줍니다.
+name: daily-queue-commit
+
+on:
+  schedule:
+    - cron: '0 12 * * *' # UTC 12:00 = 한국 시간 21:00
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '푸시하지 않고 다음 차례만 확인'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-queue-commit
+
+jobs:
+  commit-next:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: queue에서 다음 파일 커밋
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          git config core.quotepath false
+          git config user.name 'hojun.yoon'
+          git config user.email 'tjdsksro90@gmail.com'
+
+          if ! git ls-remote --exit-code --heads origin queue >/dev/null; then
+            echo 'queue 브랜치가 없어서 종료합니다.'
+            exit 0
+          fi
+          git fetch origin queue
+
+          # main에 아직 같은 내용이 없는 queue 커밋 중 가장 오래된 것
+          next=$(git rev-list --reverse --right-only --cherry-pick --no-merges main...origin/queue | head -n 1)
+          if [ -z "$next" ]; then
+            echo '대기열이 비어 있어요. 오늘은 커밋하지 않습니다.'
+            exit 0
+          fi
+
+          remaining=$(git rev-list --right-only --cherry-pick --no-merges main...origin/queue | wc -l)
+          echo "다음 차례: $(git log -1 --format=%s "$next") (남은 개수: $remaining)"
+
+          git cherry-pick --no-commit "$next"
+          git commit -C "$next" --reset-author
+          git show --stat --format='%h %ad | %an <%ae>%n%s' HEAD
+
+          if [ "$DRY_RUN" = 'true' ]; then
+            echo 'dry_run이라 푸시하지 않습니다.'
+            exit 0
+          fi
+          git push origin HEAD:main
