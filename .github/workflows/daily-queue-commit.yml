@@ -13,9 +13,14 @@ on:
         description: '푸시하지 않고 다음 차례만 확인'
         type: boolean
         default: true
+      test_notify:
+        description: '알림 테스트 이슈 만들기'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: daily-queue-commit
@@ -32,6 +37,7 @@ jobs:
           fetch-depth: 0
 
       - name: queue에서 다음 파일 커밋
+        id: commit
         env:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
@@ -64,3 +70,29 @@ jobs:
             exit 0
           fi
           git push origin HEAD:main
+
+          left=$((remaining - 1))
+          echo "left=$left" >> "$GITHUB_OUTPUT"
+          echo "last=$(git log -1 --format=%s HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 남은 개수가 3개일 때, 그리고 마지막 파일이 올라간 날에 이슈로 알림 (GitHub 메일/앱 알림)
+      - name: 대기열 알림
+        if: steps.commit.outputs.left == '3' || steps.commit.outputs.left == '0' || inputs.test_notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEFT: ${{ steps.commit.outputs.left }}
+          LAST: ${{ steps.commit.outputs.last }}
+          TEST: ${{ inputs.test_notify }}
+        run: |
+          today=$(date '+%Y-%m-%d')
+          if [ "$TEST" = 'true' ]; then
+            title="[테스트] 대기열 알림이 잘 오는지 확인"
+            body="알림 테스트예요. 이 메시지가 보이면 대기열 알림이 정상이에요. 이 이슈는 닫아도 돼요."
+          elif [ "$LEFT" = '0' ]; then
+            title="📭 대기열이 비었어요 ($today)"
+            body="오늘 마지막 파일이 올라갔어요: $LAST"$'\n\n'"내일부터는 자동 커밋이 없어요. 잔디를 이어가려면 새 작업을 푸시하거나 대기열에 넣어주세요."
+          else
+            title="⏳ 대기열 ${LEFT}개 남았어요 ($today)"
+            body="오늘 올라간 파일: $LAST"$'\n\n'"앞으로 ${LEFT}일 뒤에 대기열이 비어요. 미리 대기열에 파일을 넣어두세요."
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --assignee tjdsksro90
