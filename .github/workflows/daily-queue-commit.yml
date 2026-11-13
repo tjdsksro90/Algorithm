@@ -1,6 +1,7 @@
 # 매일 밤 9시(한국 시간)에 queue 브랜치에서 파일 1개를 꺼내 main에 커밋합니다.
 # - queue 브랜치에 "파일 1개 = 커밋 1개"로 쌓아두면 넣은 순서대로 하루에 하나씩 올라갑니다.
 # - 이미 main에 같은 내용이 올라간 커밋은 자동으로 건너뜁니다.
+# - 그날(한국 시간) 이미 잔디가 있으면 커밋하지 않고 다음 날로 미룹니다.
 # - Actions 탭에서 수동 실행할 때 dry_run을 켜두면 실제로 푸시하지 않고 다음 차례만 보여줍니다.
 name: daily-queue-commit
 
@@ -36,10 +37,30 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      # 오늘(한국 시간) 이미 잔디가 찍혔는지 확인 — 다른 저장소 작업 포함, 프로필 잔디와 같은 기준
+      - name: 오늘 잔디 확인
+        id: today
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          from=$(date '+%Y-%m-%dT00:00:00+09:00')
+          to=$(date '+%Y-%m-%dT23:59:59+09:00')
+          n=$(gh api graphql \
+            -f query='query($u:String!,$f:DateTime!,$t:DateTime!){user(login:$u){contributionsCollection(from:$f,to:$t){contributionCalendar{totalContributions}}}}' \
+            -f u="$GITHUB_REPOSITORY_OWNER" -f f="$from" -f t="$to" \
+            --jq '.data.user.contributionsCollection.contributionCalendar.totalContributions') || n=''
+          if [ -z "$n" ]; then
+            echo '오늘 잔디를 확인하지 못했어요. 그대로 진행합니다.'
+            n=0
+          fi
+          echo "오늘 잔디: $n"
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+
       - name: queue에서 다음 파일 커밋
         id: commit
         env:
           DRY_RUN: ${{ inputs.dry_run }}
+          TODAY_COUNT: ${{ steps.today.outputs.count }}
         run: |
           git config core.quotepath false
           git config user.name 'hojun.yoon'
@@ -60,6 +81,11 @@ jobs:
 
           remaining=$(git rev-list --right-only --cherry-pick --no-merges main...origin/queue | wc -l)
           echo "다음 차례: $(git log -1 --format=%s "$next") (남은 개수: $remaining)"
+
+          if [ "${TODAY_COUNT:-0}" -gt 0 ]; then
+            echo "오늘 이미 잔디가 ${TODAY_COUNT}개 있어서 건너뜁니다. 이 파일은 내일 다시 시도해요."
+            exit 0
+          fi
 
           git cherry-pick --no-commit "$next"
           git commit -C "$next" --reset-author
