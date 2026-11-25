@@ -1,7 +1,7 @@
-const fs = require("fs"); // 제출시 삭제
-const path = "test.txt"; // 제출시 삭제
+const fs = require('fs'); // 제출시 삭제
+const path = 'test.txt'; // 제출시 삭제
 
-const readline = require("readline");
+const readline = require('readline');
 const rl = readline.createInterface({
   // input: process.stdin, // 제출시 활성화
   input: fs.createReadStream(path), // 제출시 삭제
@@ -10,11 +10,11 @@ const rl = readline.createInterface({
 
 let input = [];
 
-rl.on("line", function (line) {
+rl.on('line', function (line) {
   input.push(line);
-}).on("close", function () {
+}).on('close', function () {
   // 코드 시작
-  const [n, m, k] = input[0].split(" ");
+  const [n, m, k] = input[0].split(' ');
   let x_arr = [];
   let y_arr = [];
   let x = 0;
@@ -32,3 +32,5 @@ rl.on("line", function (line) {
 
   process.exit();
 });
+
+// Ctrl + Alt + N 하면 code runner로 node 자동 실행
