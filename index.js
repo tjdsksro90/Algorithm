@@ -1,24 +1,30 @@
-const fs = require("fs");
-const file = process.platform === "linux" ? "/dev/stdin" : "test.txt";
-let input = fs.readFileSync(file).toString().trim().split("\n");
+let fs = require('fs');
+const file = process.platform === 'linux' ? 'dev/stdin' : 'test.txt';
+let input = fs.readFileSync(file).toString().trim().split('\n').map(Number);
 
-// 1546번: 평균
-// https://www.acmicpc.net/problem/1546
+// 11726
 
-const [N, ...arr] = input;
-const list = [...arr][0].split(" ");
-let result = 0;
-let newArr = [];
-const max = Math.max(...list);
+// 2xn 타일링.js
 
-// list 중에 최댓값 고르기 = M
-for (let i = 0; i < N; i++) {
-  newArr.push((Number(list[i]) / max) * 100);
+// 풀이
+
+// 규칙을 먼저 찾자 - 그래서 나온 결과
+// memo[n] = memo[n -1] + memo[n - 2]
+
+const DP = {
+  1: 0,
+};
+
+for (let i = 2; i <= input; i++) {
+  DP[i] = DP[i - 1] + 1;
+
+  if (i % 2 === 0) {
+    DP[i] = Math.min(DP[i], DP[i / 2] + 1);
+  }
+
+  if (i % 3 === 0) {
+    DP[i] = Math.min(DP[i], DP[i / 3] + 1);
+  }
 }
 
-// console.log((30 / 30) * 100);
-for (let i = 0; i < N; i++) {
-  result += Number(newArr[i]);
-}
-
-console.log((result / N).toFixed(6));
+console.log(DP[input]);
